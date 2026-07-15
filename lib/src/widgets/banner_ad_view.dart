@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'package:ayk_adview/src/models/ad_item.dart';
-import 'package:ayk_adview/src/models/constants.dart';
-import 'package:ayk_adview/src/services/ad_cache_manager.dart';
-import 'package:ayk_adview/src/services/ad_api_service.dart'; // Import your new API service layer
+import 'package:finma_adview/src/models/ad_item.dart';
+import 'package:finma_adview/src/models/constants.dart';
+import 'package:finma_adview/src/services/ad_cache_manager.dart';
+import 'package:finma_adview/src/services/ad_api_service.dart'; // Import your new API service layer
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';

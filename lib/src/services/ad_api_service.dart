@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:ayk_adview/src/models/constants.dart';
+import 'package:finma_adview/src/models/constants.dart';
 import 'package:http/http.dart' as http;
 import '../models/ad_item.dart';
 

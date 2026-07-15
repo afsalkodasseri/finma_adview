@@ -3,8 +3,8 @@
 // ==========================================
 
 
-import 'package:ayk_adview/src/models/ad_item.dart';
-import 'package:ayk_adview/src/widgets/banner_ad_view.dart';
+import 'package:finma_adview/src/models/ad_item.dart';
+import 'package:finma_adview/src/widgets/banner_ad_view.dart';
 import 'package:flutter/material.dart';
 
 void main() {
