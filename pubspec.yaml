@@ -1,0 +1,29 @@
+name: ayk_adview
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.8.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.0        # Handles analytic tracking requests
+  url_launcher: ^6.3.0 # Performs CTA app and external redirects
+  webview_flutter: ^4.10.0      # Renders the HTML content
+  path_provider: ^2.1.0        # Finds the local app storage directory
+  dio: ^5.7.0
+  shared_preferences: ^2.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  # 1. Ensure assets tracking is enabled under the flutter node block
+  assets:
+    # 2. Add the direct path mapping entry pointing to your asset asset block
+    - assets/images/
