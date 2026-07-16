@@ -17,22 +17,6 @@ void main() {
 }
 class AdTesterDashboard extends StatelessWidget {
   AdTesterDashboard({Key? key}) : super(key: key);
-// Mocking array maps received directly via API pipeline queries
-final List<AdItem> serverAdQueue = [
-  AdItem(
-    id: "promo_static_1",
-    assetUrl: "https://cobber-1122.web.app/ads/banner.png",
-    actionUrl: "https://google.com",
-    durationSeconds: 4, // Brief exposure window configuration
-  ),
-  AdItem(
-    id: "promo_gif_2",
-    assetUrl: "https://cobber-1122.web.app/ads/banner.gif",
-    actionUrl: "https://flutter.dev",
-    durationSeconds: 10, // Longer runtime window for animated artwork tracking
-  ),
-];
-
 // Displaying the component structure within your applications layout tree
 @override
 Widget build(BuildContext context) {
@@ -44,7 +28,7 @@ Widget build(BuildContext context) {
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           BannerAdView(
-            clientId: "client_123",
+            clientId: "client_456",
           ),
         ],
       ),
