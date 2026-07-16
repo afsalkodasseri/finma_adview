@@ -24,7 +24,7 @@ class BannerAdView extends StatefulWidget {
   const BannerAdView({
     Key? key,
     required this.clientId, // Enforce configuration injection from target app
-    this.aspectRatio = 373 / 117,
+    this.aspectRatio = 300 / 80,
     this.decoration = null,
     this.onAdImpression,
     this.onAdClick,
@@ -44,7 +44,7 @@ class _BannerAdViewState extends State<BannerAdView>
   bool _isLoading = true;
   bool _imageFailed = false;
   bool _htmlFailed = false;
-  WebViewController? _fallbackWebViewController;
+  WebViewController? _webViewController;
 
   // Local collection storage container matrix queue
   List<Map<String, dynamic>> _analyticsQueue = [];
@@ -123,35 +123,23 @@ class _BannerAdViewState extends State<BannerAdView>
   Future<void> _flushAnalyticsQueue() async {
     if (_analyticsQueue.isEmpty) return;
 
-    // Create a working thread copy array isolate target payload to transmit safely
     final List<Map<String, dynamic>> batchToSend = List.from(_analyticsQueue);
 
-    // Clear the active tracking list state layout memory map and update disk instantly
-    setState(() {
-      _analyticsQueue.clear();
-    });
-    await _saveQueueToStorage();
-
-    debugPrint(
-      "🔄 [Sync Engine] Attempting to sync ${batchToSend.length} queued ad events to server backend...",
-    );
-
+    debugPrint("🔄 [Sync Engine] Attempting to sync ${batchToSend.length} queued ad events...");
     final success = await AdApiService.logBatchEventsToServer(batchToSend);
 
     if (success) {
-      debugPrint(
-        "✅ [Sync Engine] Batch transaction accepted completely by cloud API.",
-      );
-    } else {
-      debugPrint(
-        "⚠️ [Sync Engine] Network target offline. Rolling back metrics array collection cache to persistent memory storage pools.",
-      );
+      debugPrint("✅ [Sync Engine] Batch transaction accepted completely.");
+      // 💎 FIX: Only clear the state array container queue out if API submission finishes successfully!
       if (mounted) {
         setState(() {
-          _analyticsQueue.addAll(batchToSend);
+          // Removes exactly the events that were successfully sent
+          _analyticsQueue.removeWhere((event) => batchToSend.contains(event));
         });
-        await _saveQueueToStorage(); // Write rolled back array metrics values safely back down onto disk
+        await _saveQueueToStorage();
       }
+    } else {
+      debugPrint("⚠️ [Sync Engine] Network target offline or server failed. Keeping logs inside queue matrix.");
     }
   }
 
@@ -232,7 +220,7 @@ class _BannerAdViewState extends State<BannerAdView>
           // RESET STATE FLAGS ON EACH ROTATION RUN
           _imageFailed = false;
           _htmlFailed = false;
-          _fallbackWebViewController = null;
+          _webViewController = null;
         });
 
         // TRACK NEXT AD IMPRESSION ONCE INDEX MUTATES
@@ -382,21 +370,10 @@ class _BannerAdViewState extends State<BannerAdView>
           height: double.infinity,
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 400),
-            child: hasValidLocalFile
-                ? Image.file(
-                    File(localPath),
-                    key: ValueKey<String>("file_${activeAd.id}"),
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    height: double.infinity,
-                    errorBuilder: (context, error, stackTrace) {
-                      debugPrint(
-                        "⚠️ Local decode failed for ${activeAd.id}. Falling back to URL.[cite: 3]",
-                      );
-                      return _buildNetworkImage(activeAd);
-                    },
-                  )
-                : _buildNetworkImage(activeAd),
+            // 🌐 ROUTER LAYER: Switch dynamically depending on Ad type metadata
+            child: activeAd.type == 'html' 
+                ? _buildWebViewLayer(activeAd)
+                : _buildImageLayer(activeAd),
           ),
         ),
       ),
@@ -404,118 +381,175 @@ class _BannerAdViewState extends State<BannerAdView>
   }
 
   // Separate helper widget to stream image from web source safely[cite: 3]
-  Widget _buildNetworkImage(AdItem ad) {
-    // Tier 3: If both Image and HTML fallbacks fail, display the asset placeholder image
-    if (_htmlFailed) {
-      return Image.asset(
-        'assets/images/placeholder_ad.png', // Ensure this exists in your library's pubspec.yaml
-        key: ValueKey<String>("asset_fallback_${ad.id}"),
+  // Widget _buildNetworkImage(AdItem ad) {
+  //   // Tier 3: If both Image and HTML fallbacks fail, display the asset placeholder image
+  //   if (_htmlFailed) {
+  //     return Image.asset(
+  //       'assets/images/placeholder_ad.png', // Ensure this exists in your library's pubspec.yaml
+  //       key: ValueKey<String>("asset_fallback_${ad.id}"),
+  //       fit: BoxFit.cover,
+  //       width: double.infinity,
+  //       height: double.infinity,
+  //       errorBuilder: (context, error, stackTrace) {
+  //         // Absolute fallback icon if the asset path is misconfigured
+  //         return Container(
+  //           color: Colors.grey[200],
+  //           child: const Center(
+  //             child: Icon(Icons.broken_image, color: Colors.grey),
+  //           ),
+  //         );
+  //       },
+  //     );
+  //   }
+
+  //   // Tier 2: If the network image fails, attempt to render the HTML structure instead
+  //   if (_imageFailed) {
+  //     // Lazy initialize the web view instance engine context safely on demand
+  //     if (_fallbackWebViewController == null) {
+  //       _fallbackWebViewController = WebViewController()
+  //         ..setJavaScriptMode(JavaScriptMode.unrestricted)
+  //         ..setNavigationDelegate(
+  //           NavigationDelegate(
+  //             onWebResourceError: (WebResourceError error) {
+  //               debugPrint(
+  //                 "❌ Embedded HTML page loader failed: ${error.description}",
+  //               );
+  //               _trackHtmlLoadFailure(
+  //                 ad,
+  //                 "HTML page loader failed: ${error.description}",
+  //               );
+  //               if (mounted) {
+  //                 setState(() {
+  //                   _htmlFailed = true;
+  //                 });
+  //               }
+  //             },
+  //             onNavigationRequest: (NavigationRequest request) {
+  //               // 1. Intercept all internal hyper-links or form submission anchors clicked inside the page
+  //               // and redirect the main app layout out to the defined actionUrl instead.
+  //               _handleAdClick(ad.actionUrl);
+  //               return NavigationDecision
+  //                   .prevent; // Block navigation inside the small webview window
+  //             },
+  //           ),
+  //         )
+  //         ..addJavaScriptChannel(
+  //           'AdViewChannel',
+  //           onMessageReceived: (JavaScriptMessage message) {
+  //             if (message.message == 'adClicked') {
+  //               _handleAdClick(ad.actionUrl);
+  //             }
+  //           },
+  //         )
+  //         // Load the pure web address target.
+  //         // (Assuming ad.actionUrl or a web endpoint hosted on your firebase site)
+  //         ..loadRequest(
+  //           Uri.parse(Constants.kErrorPageUrl),
+  //           method: LoadRequestMethod.get,
+  //           // Add HTTP headers to prevent server-side and browser-side caching
+  //           headers: {
+  //             'Cache-Control': 'no-cache, no-store, must-revalidate',
+  //             'Pragma': 'no-cache',
+  //             'Expires': '0',
+  //           },
+  //         ); // Fallback HTML page hosted on Firebase
+  //     }
+
+  //     return SizedBox(
+  //       key: ValueKey<String>("html_url_fallback_${ad.id}"),
+  //       width: double.infinity,
+  //       height: double.infinity,
+  //       // Wrap with IgnorePointer so clicks fall through to the parent GestureDetector
+  //       child: Stack(
+  //         children: [
+  //           // 1. The underlying webview content frame (forced to ignore pointers)
+  //           IgnorePointer(
+  //             ignoring: true,
+  //             child: WebViewWidget(controller: _fallbackWebViewController!),
+  //           ),
+
+  //           // 2. A 100% transparent hit-test interceptor surface explicitly capturing the click
+  //           Positioned.fill(
+  //             child: GestureDetector(
+  //               behavior: HitTestBehavior
+  //                   .opaque, // Imperative to catch touches on transparent layers
+  //               onTap: () {
+  //                 debugPrint(
+  //                   "🎯 Fallback HTML view intercepted tap successfully.",
+  //                 );
+  //                 _handleAdClick(
+  //                   ad.actionUrl,
+  //                 ); // Direct routing execution logic catch[cite: 5]
+  //               },
+  //               child: Container(
+  //                 color: Colors
+  //                     .transparent, // Keeps it invisible but completely touchable
+  //               ),
+  //             ),
+  //           ),
+  //         ],
+  //       ),
+  //     );
+  //   }
+
+  //   // Tier 1: Try loading the standard network image asset path target logic[cite: 3]
+  //   return Image.network(
+  //     ad.assetUrl,
+  //     key: ValueKey<String>("net_${ad.id}"),
+  //     fit: BoxFit.cover,
+  //     width: double.infinity,
+  //     height: double.infinity,
+  //     errorBuilder: (context, error, stackTrace) {
+  //       debugPrint(
+  //         "⚠️ Image network load failed for ${ad.id}. Falling back to HTML container view layer.",
+  //       );
+  //       // TRACK NETWORK LIVE DOWNLOAD FAILURE
+  //       _trackImageLoadFailure(
+  //         ad,
+  //         "Network fallback download error: ${error.toString()}",
+  //       );
+  //       // Use post frame callback to avoid altering state during current build layout phase execution cycles
+  //       WidgetsBinding.instance.addPostFrameCallback((_) {
+  //         setState(() {
+  //           _imageFailed = true;
+  //         });
+  //       });
+
+  //       return Container(
+  //         color: Colors.grey[100],
+  //         child: const Center(
+  //           child: CircularProgressIndicator.adaptive(strokeWidth: 2),
+  //         ),
+  //       );
+  //     },
+  //   );
+  // }
+
+
+  Widget _buildImageLayer(AdItem ad) {
+    if (_imageFailed) {
+      return _buildPlaceholder();
+    }
+
+    final localPath = _localCachePaths[ad.id];
+    final hasValidLocalFile = localPath != null && File(localPath).existsSync();
+
+    if (hasValidLocalFile) {
+      return Image.file(
+        File(localPath),
+        key: ValueKey<String>("file_${ad.id}"),
         fit: BoxFit.cover,
         width: double.infinity,
         height: double.infinity,
         errorBuilder: (context, error, stackTrace) {
-          // Absolute fallback icon if the asset path is misconfigured
-          return Container(
-            color: Colors.grey[200],
-            child: const Center(
-              child: Icon(Icons.broken_image, color: Colors.grey),
-            ),
-          );
+          return _buildNetworkImage(ad);
         },
       );
     }
+    return _buildNetworkImage(ad);
+  }
 
-    // Tier 2: If the network image fails, attempt to render the HTML structure instead
-    if (_imageFailed) {
-      // Lazy initialize the web view instance engine context safely on demand
-      if (_fallbackWebViewController == null) {
-        _fallbackWebViewController = WebViewController()
-          ..setJavaScriptMode(JavaScriptMode.unrestricted)
-          ..setNavigationDelegate(
-            NavigationDelegate(
-              onWebResourceError: (WebResourceError error) {
-                debugPrint(
-                  "❌ Embedded HTML page loader failed: ${error.description}",
-                );
-                _trackHtmlLoadFailure(
-                  ad,
-                  "HTML page loader failed: ${error.description}",
-                );
-                if (mounted) {
-                  setState(() {
-                    _htmlFailed = true;
-                  });
-                }
-              },
-              onNavigationRequest: (NavigationRequest request) {
-                // 1. Intercept all internal hyper-links or form submission anchors clicked inside the page
-                // and redirect the main app layout out to the defined actionUrl instead.
-                _handleAdClick(ad.actionUrl);
-                return NavigationDecision
-                    .prevent; // Block navigation inside the small webview window
-              },
-            ),
-          )
-          ..addJavaScriptChannel(
-            'AdViewChannel',
-            onMessageReceived: (JavaScriptMessage message) {
-              if (message.message == 'adClicked') {
-                _handleAdClick(ad.actionUrl);
-              }
-            },
-          )
-          // Load the pure web address target.
-          // (Assuming ad.actionUrl or a web endpoint hosted on your firebase site)
-          ..loadRequest(
-            Uri.parse(Constants.kErrorPageUrl),
-            method: LoadRequestMethod.get,
-            // Add HTTP headers to prevent server-side and browser-side caching
-            headers: {
-              'Cache-Control': 'no-cache, no-store, must-revalidate',
-              'Pragma': 'no-cache',
-              'Expires': '0',
-            },
-          ); // Fallback HTML page hosted on Firebase
-      }
-
-      return SizedBox(
-        key: ValueKey<String>("html_url_fallback_${ad.id}"),
-        width: double.infinity,
-        height: double.infinity,
-        // Wrap with IgnorePointer so clicks fall through to the parent GestureDetector
-        child: Stack(
-          children: [
-            // 1. The underlying webview content frame (forced to ignore pointers)
-            IgnorePointer(
-              ignoring: true,
-              child: WebViewWidget(controller: _fallbackWebViewController!),
-            ),
-
-            // 2. A 100% transparent hit-test interceptor surface explicitly capturing the click
-            Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior
-                    .opaque, // Imperative to catch touches on transparent layers
-                onTap: () {
-                  debugPrint(
-                    "🎯 Fallback HTML view intercepted tap successfully.",
-                  );
-                  _handleAdClick(
-                    ad.actionUrl,
-                  ); // Direct routing execution logic catch[cite: 5]
-                },
-                child: Container(
-                  color: Colors
-                      .transparent, // Keeps it invisible but completely touchable
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Tier 1: Try loading the standard network image asset path target logic[cite: 3]
+  Widget _buildNetworkImage(AdItem ad) {
     return Image.network(
       ad.assetUrl,
       key: ValueKey<String>("net_${ad.id}"),
@@ -523,26 +557,81 @@ class _BannerAdViewState extends State<BannerAdView>
       width: double.infinity,
       height: double.infinity,
       errorBuilder: (context, error, stackTrace) {
-        debugPrint(
-          "⚠️ Image network load failed for ${ad.id}. Falling back to HTML container view layer.",
-        );
-        // TRACK NETWORK LIVE DOWNLOAD FAILURE
-        _trackImageLoadFailure(
-          ad,
-          "Network fallback download error: ${error.toString()}",
-        );
-        // Use post frame callback to avoid altering state during current build layout phase execution cycles
+        _trackImageLoadFailure(ad, error.toString());
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          setState(() {
-            _imageFailed = true;
-          });
+          setState(() => _imageFailed = true);
         });
+        return _buildPlaceholder();
+      },
+    );
+  }
 
-        return Container(
-          color: Colors.grey[100],
-          child: const Center(
-            child: CircularProgressIndicator.adaptive(strokeWidth: 2),
+  Widget _buildWebViewLayer(AdItem ad) {
+    if (_htmlFailed) {
+      return _buildPlaceholder();
+    }
+
+    if (_webViewController == null) {
+      _webViewController = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onWebResourceError: (WebResourceError error) {
+              _trackHtmlLoadFailure(ad, error.description);
+              if (mounted) {
+                setState(() => _htmlFailed = true);
+              }
+            },
+            onNavigationRequest: (NavigationRequest request) {
+              _handleAdClick(ad.actionUrl);
+              return NavigationDecision.prevent;
+            },
           ),
+        )
+        ..loadRequest(
+          Uri.parse(ad.assetUrl.isNotEmpty ? ad.assetUrl : Constants.kErrorPageUrl),
+          method: LoadRequestMethod.get,
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+          },
+        );
+    }
+
+    return SizedBox(
+      key: ValueKey<String>("html_${ad.id}"),
+      width: double.infinity,
+      height: double.infinity,
+      child: Stack(
+        children: [
+          IgnorePointer(
+            ignoring: true,
+            child: WebViewWidget(controller: _webViewController!),
+          ),
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _handleAdClick(ad.actionUrl),
+              child: Container(color: Colors.transparent),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlaceholder() {
+    return Image.asset(
+      'assets/images/placeholder_ad.png',
+      key: const ValueKey<String>("asset_fallback"),
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+      errorBuilder: (context, error, stackTrace) {
+        return Container(
+          color: Colors.grey[200],
+          child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
         );
       },
     );
