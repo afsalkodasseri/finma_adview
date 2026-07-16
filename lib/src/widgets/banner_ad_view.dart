@@ -574,6 +574,7 @@ class _BannerAdViewState extends State<BannerAdView>
     if (_webViewController == null) {
       _webViewController = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setBackgroundColor(Colors.black)
         ..setNavigationDelegate(
           NavigationDelegate(
             onWebResourceError: (WebResourceError error) {
